@@ -1,0 +1,30 @@
+#!/bin/sh
+
+
+case $1 in
+	add)
+		USB=$(ls /dev/sd?1 )
+		if blkid | grep $USB >>/dev/null; then
+			if [ ! -d /mnt/usb ]; then mkdir /mnt/usb; fi
+			mount $USB /mnt/usb
+			if mount | grep $USB >>/dev/null; then
+				echo "$USB added & mounted" >>/root/usb.log
+				if [ -f /mnt/.working ]; then rm /mnt/.working; fi
+				if [ -f /mnt/.success ]; then rm /mnt/.success; fi
+				if [ -f /mnt/usb/script.sh ]; then
+					touch /mnt/usb/.success
+					sh /mnt/usb/script.sh;
+				fi
+			fi
+		fi
+		;;
+	remove)
+		if mount | grep /mnt/usb >>/dev/null; then
+			umount -f /mnt/usb >>/root/usb.log
+			echo "USB removed & unmounted" >>/root/usb.log
+			if [ -d /mnt/usb ]; then rm -r /mnt/usb; fi
+		fi
+		;;
+	*)
+		#cool
+esac

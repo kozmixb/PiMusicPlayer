@@ -1,0 +1,60 @@
+#!/bin/sh
+
+echo "DiskCP is running"
+LOG="/root/usb.log"
+
+if [ -d /mnt/usb ] && [ ! -f /mnt/.success ] && [ ! -f /mnt/.working ] && [ -f /mnt/usb/.import ]; then
+	touch /mnt/.working
+	echo "Media player daemon stopped" >>$LOG
+	mpc stop >> /dev/null
+	mpc clear >> /dev/null
+	#echo "Old media backup into /music/save" >>$LOG
+	rm -r /music/save/*
+	#mv /music/mpd/* /music/save/
+
+	coping (){
+		for filename in "$1"/* ; do
+			if [ -d "$filename" ]; then
+				coping "$filename"
+			else
+				case ${filename##*.} in
+					mp3|m4a)
+						EFILE=$(echo $(basename "$filename") | sed "s/ /_/g" )
+						cp "$filename" /music/mpd/$EFILE
+						if [ -f /music/mpd/$EFILE ]; then
+							echo "Copied: $EFILE" >>$LOG
+						else
+							echo "Failed to copy: $EFILE" >>$LOG
+						fi
+        				;;
+					*)
+				esac
+			fi
+		done
+		sync
+	}
+	echo "New media copy from USB into /music/mpd" >>$LOG
+	coping /mnt
+	if [ -f /mnt/.working ]; then
+		rm /mnt/.working
+		touch /mnt/.success
+		echo "Successfull file transfer!" >>$LOG
+	else
+		echo "Error in the coping" >>$LOG
+	fi
+	rm /mnt/usb/.import
+	mpc update
+	mpc ls | mpc add >> /dev/null
+	mpc shuffle >>/dev/null
+	mpc play >>$LOG
+
+fi
+
+if ! mount |grep /dev/sd?1; then
+	if [ ! "$(mpc playlist)" ]; then mpc ls |mpc add; echo "Playlist created">>$LOG; fi
+	if ! mpc status |grep playing>>/dev/null;then mpc play; echo "Playing mpc">>$LOG; fi
+	if [ ! $(mpc status |grep volume |cut -c8-10 ) -eq 100 ];then mpc volume 100; echo "Volume: 100">>$LOG; fi
+	if [ $(mpc status |grep repeat |cut -c23-24 ) = "of" ];then mpc repeat on; echo "Repeat: on">>$LOG; fi
+#	if [ $(mpc status |grep random |cut -c37-38 ) = "of" ];then mpc random on; echo "Random: on">>$LOG; fi
+	if [ ! "$(ls -A /music/mpd)" ];then ln -s /music/default/* /music/mpd/; mpc update; mpc ls |mpc add; mpc play; echo "Emergency music uploaded!">>$LOG; fi
+fi
